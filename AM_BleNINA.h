@@ -13,63 +13,67 @@
    REPRODUCTION AND MODIFICATION OF THE SOFTWARE AND OR OF THE DOCUMENTATION, HOWEVER CAUSED AND WHETHER UNDER THEORY OF CONTRACT, TORT (INCLUDING NEGLIGENCE),
    STRICT LIABILITY OR OTHERWISE, EVEN IF THE AUTHOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    Author: Fabrizio Boco - fabboco@gmail.com
-   Version: 1.1.0
+   Version: 1.0.0
    All rights reserved
 */
+#ifndef AM_BleNINA_H
+#define AM_BleNINA_H
 
-#ifndef AMCONTROLLERM19_h
-#define AMCONTROLLERM19_h
-
-#include <avr/eeprom.h>
 #include <Arduino.h>
-#include <HardwareSerial.h>
+#include <ArduinoBLE.h>
 
-//#define SD_SUPPORT        // uncomment to enable support for SD Widget - Download only
-//#define ALARMS_SUPPORT    // uncomment to enable support for Alarm Widget
-//#define SDLOGGEDATAGRAPH_SUPPORT    // uncomment to enable support for Logged Data Widget
-//#define DEBUG           // uncomment to enable debugging - You should not need it !
+// #define ALARMS_SUPPORT              // uncomment to enable support for Alarm Widget - LEFT THIS ALONE AT THE MOMENT
+// #define SD_SUPPORT                  // uncomment to enable support for SD Widget  - LEFT THIS ALONE AT THE MOMENT
+// #define SDLOGGEDATAGRAPH_SUPPORT    // uncomment to enable support for Logged Data Widget - LEFT THIS ALONE AT THE MOMENT
+//#define DEBUG                       // uncomment to enable debugging - You should not need it !
 
-#define HM10_COM_SPEED			  9600
+/*******************************
+Apparently the SD Card doesn't work if the sketch's setup contains
+pinMode(LED_BUILTIN,OUTPUT);
+If the LED_BUILTIN is not configured as OUTPUT
+digitalWrite(LED_BUILTIN, ...);
+doesn't work either.
+********************************/
 
-#if defined(SD_SUPPORT) || defined(SDLOGGEDATAGRAPH_SUPPORT)
-#include <SPI.h>
+
+#define SERVICE_UUID        "19B10000-E8F2-537E-4F6C-D104768A1214"
+#define CHARACTERISTIC_UUID "19B10001-E8F2-537E-4F6C-D104768A1214"
+
+#define WRITE_DELAY	10					 // Delay after notification
+
+#ifdef SD_SUPPORT
 #include <SD.h>
 #endif
 
-#ifdef ALARMS_SUPPORT
+#if defined(ALARMS_SUPPORT)
 
-typedef struct  {
-  char 						id[12];  // First character of id is always A
-  unsigned long 	time;
-  bool						repeat;
-} alarm;
+#include "utility/Alarm.h"
+#include "utility/FileManager.h"
 
-
+#define MAX_ALARMS             5      // Maximum number of Alarms Widgets
 #define ALARM_CHECK_INTERVAL  60      // [s]
 
 #endif
 
-#define VARIABLELEN 14
-#define VALUELEN 14
-
+#define VARIABLELEN       14
+#define VALUELEN          14
 
 class AMController {
 
   private:
-    char				_variable[VARIABLELEN + 1];
-    char 	   		_value[VALUELEN + 1];
-    bool	   		_var;
-    int       	_idx;
 
-#ifdef SD_SUPPORT
-    File 				_root;
-    File				_entry;
-#endif
+    volatile bool 	    _dataAvailable;
+    char      		      _remainBuffer[128];
+    volatile bool 	    _connectionChanged;
+    volatile bool       _connected;
+    bool		            _sync;
 
 #ifdef ALARMS_SUPPORT
-    unsigned long		_startTime;
-    unsigned long   _lastAlarmCheck;    
-    unsigned long 	_tmpTime;
+		unsigned long				_startTime;
+    String              _alarmFile;
+    unsigned long       _lastAlarmCheck;
+    char 								_alarmId[8];
+    unsigned long       _alarmTime;
 #endif
 
     /**
@@ -84,8 +88,6 @@ class AMController {
 
     /*
       Pointer to the function where incoming messages are processed
-      variable
-      value
     */
     void (*_processIncomingMessages)(char *variable, char *value);
 
@@ -93,13 +95,6 @@ class AMController {
       Pointer to the function where outgoing messages are processed
     */
     void (*_processOutgoingMessages)(void);
-
-#ifdef ALARMS_SUPPORT
-    /*
-      Pointer to the function where alerts are processed
-    */
-    void (*_processAlarms)(char *alarm);
-#endif
 
     /*
       Pointer to the function called when a device connects to Arduino
@@ -111,17 +106,22 @@ class AMController {
     */
     void (*_deviceDisconnected)(void);
 
+#ifdef ALARMS_SUPPORT
+    /*
+      Pointer to the function where alerts are processed
+    */
+    void (*_processAlarms)(char *alarm);
+#endif
+
     void readVariable(void);
 
 #ifdef ALARMS_SUPPORT
 
-    void breakTime(unsigned long time, int *seconds, int *minutes, int *hours, int *Wday, long *Year, int *Month, int *Day);
-
     void syncTime();
     void readTime();
 
-    void inizializeAlarms(void);
-    void checkAndFireAlarms(void);
+    void inizializeAlarms();
+    void checkAndFireAlarms();
     void createUpdateAlarm(char *id, unsigned long time, bool repeat);
     void removeAlarm(char *id);
 
@@ -129,10 +129,19 @@ class AMController {
 
   public:
 
-#ifdef ALARMS_SUPPORT
-    AMController(
+    AMController (
       void (*doWork)(void),
-      void (*doSync)(void),
+      void (*doSync)(),
+      void (*processIncomingMessages)(char *variable, char *value),
+      void (*processOutgoingMessages)(void),
+      void (*deviceConnected)(void),
+      void (*deviceDisconnected)(void));
+
+#if defined(ALARMS_SUPPORT)
+
+    AMController (
+      void (*doWork)(void),
+      void (*doSync)(),
       void (*processIncomingMessages)(char *variable, char *value),
       void (*processOutgoingMessages)(void),
       void (*processAlarms)(char *alarm),
@@ -140,22 +149,16 @@ class AMController {
       void (*deviceDisconnected)(void));
 #endif
 
-    AMController(
-      void (*doWork)(void),
-      void (*doSync)(void),
-      void (*processIncomingMessages)(char *variable, char *value),
-      void (*processOutgoingMessages)(void),
-      void (*deviceConnected)(void),
-      void (*deviceDisconnected)(void));
+    bool begin(const char *deviceName);
 
-
-    void begin();
     void loop();
     void loop(unsigned long delay);
     void writeMessage(const char *variable, int value);
     void writeMessage(const char *variable, float value);
     void writeTripleMessage(const char *variable, float vX, float vY, float vZ);
     void writeTxtMessage(const char *variable, const char *value);
+
+    void updateBatteryLevel(uint8_t level);
 
     void log(const char *msg);
     void log(int msg);
@@ -165,17 +168,13 @@ class AMController {
     void logLn(long msg);
     void logLn(unsigned long msg);
 
-#ifdef SD_SUPPORT
-    void sendFileList(void);
-    void sendFile(char *fileName);
-#endif
-
     void temporaryDigitalWrite(uint8_t pin, uint8_t value, unsigned long ms);
 
 #ifdef ALARMS_SUPPORT
-    unsigned long now(void);
+    unsigned long now();
 #ifdef DEBUG
     void dumpAlarms();
+    void breakTime(unsigned long time, int *seconds, int *minutes, int *hours, int *Wday, long *Year, int *Month, int *Day);
     void printTime(unsigned long time);
 #endif
 #endif
@@ -196,10 +195,16 @@ class AMController {
 
     void sdSendLogData(const char *variable);
 
+    uint16_t sdFileSize(const char *variable);
     void sdPurgeLogData(const char *variable);
-
+    
 #endif
 
+    void writeBuffer(uint8_t *buffer, int l);
+    void processIncomingData();
+    void connected(void);
+    void disconnected(void);
+    void dataAvailable(String string);
 };
 
 #endif
