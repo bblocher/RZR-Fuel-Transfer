@@ -5,18 +5,12 @@
 
 #define DEVICE_NAME "RZR_FUEL"
 
-// Define the debug flags
-// #define DEBUG_AUX
-// #define DEBUG_BLE
-
-#ifdef DEBUG_AUX || DEBUG_BLE
-  #define DEBUG
-#endif
+#define DEBUG
 
 // Define the constants for the primary fuel level sensor
 #define PRI_FUEL_LEVEL_PIN A0
-#define PRI_FUEL_LEVEL_MIN 125
-#define PRI_FUEL_LEVEL_MAX 450
+#define PRI_FUEL_LEVEL_MIN 55
+#define PRI_FUEL_LEVEL_MAX 220
 
 // Define the constants for the auxillary fuel level sensor
 #define AUX_FUEL_LEVEL_PIN A1
@@ -27,7 +21,7 @@
 #define FUEL_TRANSFER_MAX 85
 #define FUEL_TRANSFER_THRESHOLD 10
 
-#define PUMP_PIN 8
+#define PUMP_PIN A5
 
 bool bleStatus = false;
 bool pumpOn = false;
@@ -138,7 +132,16 @@ void sendStatus() {
 *
 */
 void doWork() {
-  amController.logLn("Doing work...");
+  #ifdef DEBUG
+    amController.log("Primary: ");
+    amController.log(primaryFuelLevel.getFuelLevel());
+    amController.log(" - ");
+    amController.logLn(primaryFuelLevel.getLast());
+    amController.log("Aux: ");
+    amController.log(auxilaryFuelLevel.getFuelLevel());
+    amController.log(" - ");
+    amController.logLn(auxilaryFuelLevel.getLast());
+  #endif
 }
 
 /**
@@ -177,12 +180,6 @@ void processOutgoingMessages() {
   sendPumpOnState();
   sendManualPumpOnState();
   sendStatus();
-
-  // Debug
-  amController.writeMessage("priMin", primaryFuelLevel.getMinValue());
-  amController.writeMessage("priMax", primaryFuelLevel.getMaxValue());
-  amController.writeMessage("auxMin", auxilaryFuelLevel.getMinValue());
-  amController.writeMessage("auxMax", auxilaryFuelLevel.getMaxValue());
 }
 
 void deviceConnected() {

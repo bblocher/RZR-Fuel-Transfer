@@ -4,7 +4,6 @@
 #include <Arduino.h>
 
 #define FUEL_SAMPLE_SIZE 100
-#define DEBUG_FUEL
 
 class FuelMonitor {
 
@@ -19,17 +18,15 @@ class FuelMonitor {
     int pin;    
     int SampleCount = 0;
     int sampleIndex = 0;
-    int minValueSeen = 0xFFFF;
-    int maxValueSeen = 0;
+    int fuelAnalog = 0;
 
   public:
     FuelMonitor (const char *name, int pin, int minValue, int maxValue);
     void begin();
     void loop();
     byte getFuelLevel();
+    byte getLast();
     bool initialized();
-    int getMinValue();
-    int getMaxValue();
 };
 
 #endif

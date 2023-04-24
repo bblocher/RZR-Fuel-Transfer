@@ -14,14 +14,7 @@ void FuelMonitor::begin() {
 
 void FuelMonitor::loop() {
   // Read analog input
-  int fuelAnalog = analogRead(pin);
-
-  if (fuelAnalog < minValueSeen) {
-    minValueSeen = fuelAnalog;
-  }
-  if (fuelAnalog > maxValueSeen) {
-    maxValueSeen = fuelAnalog;
-  }
+  fuelAnalog = analogRead(pin);
 
   // Standardize the analog input
   if (fuelAnalog < minValueAllowed) {
@@ -59,14 +52,10 @@ void FuelMonitor::loop() {
   }
 
   fuelLevel = avg;
+}
 
-  #ifdef DEBUG_FUEL
-    Serial.print(name);
-    Serial.print(" Fuel Level:");
-    Serial.print(fuelAnalog);
-    Serial.print(" - ");
-    Serial.println(fuelLevel);
-  #endif
+byte FuelMonitor::getLast() {
+  return fuelAnalog;
 }
 
 byte FuelMonitor::getFuelLevel() {
@@ -75,12 +64,4 @@ byte FuelMonitor::getFuelLevel() {
 
 bool FuelMonitor::initialized() {
     return SampleCount >= FUEL_SAMPLE_SIZE;
-}
-
-int FuelMonitor::getMinValue() {
-    return minValueSeen;
-}
-
-int FuelMonitor::getMaxValue() {
-    return maxValueSeen;
 }
